@@ -4,17 +4,42 @@ use std::env::Args;
 use regex::Regex;
 use reqwest;
 
+
+
 pub struct ArticleArgsParams {
     pub paths: String,
     pub num: usize,
 }
+
+pub struct GetRequestSearchEngineer {
+}
+
+#[derive(Debug)]
+pub enum SearchEngineer{
+    Baidu(String),
+    None
+}
+
+impl SearchEngineer{
+
+    pub fn new(text: String) -> Self {
+        let mut search_engineer:SearchEngineer =SearchEngineer::None;
+        let mut add_search_end = String::new();
+        if text.to_string() == "baidu".to_string() {
+            add_search_end = String::from("s?wd=");
+            let baidu_url_http = String::from("http://www.baidu.com/");
+            search_engineer = SearchEngineer::Baidu(baidu_url_http + &add_search_end)
+        }
+        search_engineer
+    }
+}
+
 
 impl ArticleArgsParams {
      pub fn handle_article(location: ArticleArgsParams) -> Vec<String> {
          if location.num > 32  {
              panic!("Invalid article number: {}", location.num);
          }
-
         let path = path::Path::new(location.paths.as_str());
         let regx = Regex::new(r"[\r\n]+").unwrap();
         let num = location.num;
@@ -36,6 +61,13 @@ impl ArticleArgsParams {
     }
 }
 
+impl GetRequestSearchEngineer {
+    pub async fn get(url: &str) -> Result<String, reqwest::Error>  {
+        let response = reqwest::get(url).await?;
+        response.text().await
+    }
+}
+
 pub fn get_args_params(mut arg: Args) ->(String, usize) {
     arg.next();
     let path = arg.next().unwrap();
@@ -52,13 +84,8 @@ pub fn get_file_end_name (file_name: &str) -> String {
     extension.unwrap().to_string()
 }
 
-pub async fn get(url: &str) -> Result<String, reqwest::Error> {
-    let response = reqwest::get(url).await?;
-    response.text().await
-}
-
 pub async fn get_request_search_engineer()  {
-    let test = match get("http://www.baidu.com/s?wd=%E6%88%91%E6%9C%89%E4%B8%80%E4%B8%AA%E6%A2%A6%E6%83%B3").await {
+    let test = match GetRequestSearchEngineer::get("http://www.baidu.com/s?wd=%E6%88%91%E6%9C%89%E4%B8%80%E4%B8%AA%E6%A2%A6%E6%83%B3").await {
         Ok(res) => res,
         Err(e) => panic!("{}", e),
     };

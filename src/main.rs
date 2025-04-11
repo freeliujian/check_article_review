@@ -1,5 +1,7 @@
-use check_article_review::{get_request_search_engineer};
+use check_article_review::{get_request_search_engineer,SearchEngineer};
 use tokio;
+
+
 
 #[tokio::main]
 async fn main() {
@@ -11,5 +13,7 @@ async fn main() {
     //         num
     //     }
     // );
-    get_request_search_engineer().await;
+    let baidu_http = SearchEngineer::new(String::from("baidu"));
+    println!("{:?}",baidu_http);
+   // get_request_search_engineer().await;
 }
