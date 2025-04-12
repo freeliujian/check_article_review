@@ -4,8 +4,7 @@ use std::env::Args;
 use regex::Regex;
 use reqwest;
 use futures::future::join_all;
-
-
+use reqwest::{get, Error};
 
 pub struct ArticleArgsParams {
     pub paths: String,
@@ -38,19 +37,15 @@ impl ArticleArgsParams {
         regx_content
     }
 }
-
+#[derive(Debug)]
 pub struct GetRequestSearchEngineer {
     pub url:SearchEngineer,
     pub search_content:String,
 }
 
 impl GetRequestSearchEngineer {
-    pub async fn get(search_params: GetRequestSearchEngineer) -> Result<String, reqwest::Error>  {
-        let get_url = match search_params.url {
-            SearchEngineer::Baidu(url) => url + search_params.search_content.as_ref(),
-            SearchEngineer::None => panic!("No Engineer!"),
-        };
-        let response = reqwest::get(get_url).await?;
+    pub async fn get(url:String) -> Result<String, Error>  {
+        let response = get(url).await?;
         response.text().await
     }
 }
@@ -103,23 +98,20 @@ pub async fn get_request_search_engineer(content: String) {
     println!("test is :{:?}", filter_em_regex_pin);
 }
 
-pub async fn loop_request_search(content: Vec<String>, url: SearchEngineer)  {
-    let task = content.into_iter().map(
-         |item| {
-            let url = match &url {
-                SearchEngineer::Baidu(url) => url.as_str(),
-                SearchEngineer::None => panic!("No Engineer!"),
-            };
-            async move {
-                let req =  GetRequestSearchEngineer::get(GetRequestSearchEngineer {
-                    url:SearchEngineer::Baidu(url.to_owned()),
-                    search_content: item,
-                }).await.expect("TODO: panic message");
-                println!("{:?}", req);
-            }
-        }
-    );
-    join_all(task).await;
+pub async fn loop_request_search(content: Vec<String>, url: SearchEngineer) {
+    let urls = content.into_iter().map(move |item| {
+        let get_url = match &url {
+            SearchEngineer::Baidu(url) => {
+                let new_url = format!("{}{}", url,item);
+                new_url
+            },
+            SearchEngineer::None => panic!("No Engineer!"),
+        };
+        GetRequestSearchEngineer::get(get_url)
+    }).collect::<Vec<_>>();
+
+    let res = join_all(urls).await;
+    println!("Results: {:?}", res);
 }
 
 #[cfg(test)]
