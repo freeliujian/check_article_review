@@ -1,5 +1,5 @@
 use std::env;
-use check_article_review::{get_args_params, loop_request_search, ArticleArgsParams, SearchEngineer};
+use check_article_review::{get_args_params,LoopRequestSearchEngine, ArticleArgsParams, SearchEngineer, get_request_search_engineer};
 use tokio;
 
 
@@ -15,5 +15,8 @@ async fn main() {
         }
     );
     let baidu_http = SearchEngineer::new(String::from("baidu"));
-    loop_request_search(article_content_vec,baidu_http).await;
+    LoopRequestSearchEngine::loop_request_search(LoopRequestSearchEngine {
+        content: article_content_vec,
+        url: baidu_http
+    }).await;
 }

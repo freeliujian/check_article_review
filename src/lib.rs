@@ -1,10 +1,12 @@
+use std::cell::RefCell;
 use std::path;
 use std::fs::read_to_string;
 use std::env::Args;
+use std::rc::Rc;
 use regex::Regex;
-use reqwest;
 use futures::future::join_all;
 use reqwest::{get, Error};
+use scraper::{ Selector, Html};
 
 pub struct ArticleArgsParams {
     pub paths: String,
@@ -81,37 +83,61 @@ pub fn get_args_params(mut arg: Args) ->(String, usize) {
     (path, num)
 }
 
-pub fn get_file_end_name (file_name: &str) -> String {
+fn get_file_end_name (file_name: &str) -> String {
     let file_path = path::Path::new(file_name);
     let extension = file_path.extension().and_then(|s| s.to_str());
     extension.unwrap().to_string()
 }
 
-pub async fn get_request_search_engineer(content: String) {
-    let filter_em_regex = Regex::new(r"<em>(.*?)</em>");
-    let filter_em_regex_pin:usize = filter_em_regex
-        .unwrap().captures_iter(content.as_str())
-        .filter_map(|captures| captures.get(1).map(|m| m.as_str().to_string()))
-        .collect::<Vec<String>>()
-        .len();
-
-    println!("test is :{:?}", filter_em_regex_pin);
+pub async fn get_request_search_engineer(content: String) -> Option<usize> {
+    let mut filter_em_regex_pin:usize =1;
+    let document = Html::parse_document(content.as_str());
+    let selector = Selector::parse("div#content_left").unwrap();
+    if let Some(div) = document.select(&selector).next() {
+        let left_div = div.inner_html();
+        let filter_em_regex = Regex::new(r"<em>(.*?)</em>");
+        filter_em_regex_pin = filter_em_regex
+            .unwrap().captures_iter(left_div.as_str())
+            .filter_map(|captures| captures.get(1).map(|m| m.as_str().to_string()))
+            .collect::<Vec<String>>()
+            .len();
+    };
+    Some(filter_em_regex_pin)
 }
 
-pub async fn loop_request_search(content: Vec<String>, url: SearchEngineer) {
-    let urls = content.into_iter().map(move |item| {
-        let get_url = match &url {
-            SearchEngineer::Baidu(url) => {
-                let new_url = format!("{}{}", url,item);
-                new_url
-            },
-            SearchEngineer::None => panic!("No Engineer!"),
-        };
-        GetRequestSearchEngineer::get(get_url)
-    }).collect::<Vec<_>>();
+pub struct LoopRequestSearchEngine {
+    pub content: Vec<String>,
+    pub url:SearchEngineer,
+}
+impl LoopRequestSearchEngine {
+    pub async fn loop_request_search(params: LoopRequestSearchEngine) {
+        let mut items = Rc::new(RefCell::new(Vec::new()));
+        let urls = params.content.into_iter().map({
+            let items = Rc::clone(&items);
+            move |item| {
+                items.borrow_mut().push(item.clone());
+                let get_url = match &params.url {
+                    SearchEngineer::Baidu(url) => {
+                        let new_url = format!("{}{}", url,item);
+                        new_url
+                    },
+                    SearchEngineer::None => panic!("No Engineer!"),
+                };
+                GetRequestSearchEngineer::get(get_url)
+            }
+        }).collect::<Vec<_>>();
 
-    let res = join_all(urls).await;
-    println!("Results: {:?}", res);
+        let results = join_all(urls).await;
+        for (i, result) in results.into_iter().enumerate() {
+             match result {
+                Ok(msg) => {
+                   let get_pin =  get_request_search_engineer(msg).await;
+                    println!("当前文本：{}， 在搜索引擎提及频率是： {:?}",items.borrow()[i], get_pin.expect("获取错误信息"));
+                },
+                Err(e) => eprintln!("[{}] Error: {}", i, e),
+            }
+        }
+    }
 }
 
 #[cfg(test)]
