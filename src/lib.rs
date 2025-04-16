@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::path;
 use std::fs::read_to_string;
-use std::env::Args;
 use std::rc::Rc;
+
 use regex::Regex;
 use futures::future::join_all;
 use reqwest::{get, Error};
@@ -73,14 +73,14 @@ impl SearchEngineer{
 }
 
 
-pub fn get_args_params(mut arg: Args) ->(String, usize) {
+pub fn get_args_params(mut arg: impl Iterator<Item = String>) ->Result<ArticleArgsParams, Error> {
     arg.next();
     let path = arg.next().unwrap();
     let num = arg.next()
         .expect("没有获取到字符参数")
         .parse::<usize>()
         .expect("你没有输入正确的数字");
-    (path, num)
+    Ok(ArticleArgsParams{paths: path, num})
 }
 
 fn get_file_end_name (file_name: &str) -> String {
@@ -111,7 +111,7 @@ pub struct LoopRequestSearchEngine {
 }
 impl LoopRequestSearchEngine {
     pub async fn loop_request_search(params: LoopRequestSearchEngine) {
-        let mut items = Rc::new(RefCell::new(Vec::new()));
+        let items = Rc::new(RefCell::new(Vec::new()));
         let urls = params.content.into_iter().map({
             let items = Rc::clone(&items);
             move |item| {
@@ -140,17 +140,43 @@ impl LoopRequestSearchEngine {
     }
 }
 
+
+
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[test]
-    fn test_get_location_for_file() {
+    use std::vec::IntoIter;
 
+
+
+    #[test]
+    fn test_search_engineer() {
+        let output = match SearchEngineer::new(String::from("baidu")) {
+            SearchEngineer::Baidu(url) => url,
+            SearchEngineer::None => panic!("No Engineer!"),
+        };
+        assert_eq!("https://www.baidu.com/s?wd=", output);
+    }
+
+    fn mock_args<I,T>(args: I) -> IntoIter<String>
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<String>
+    {
+        let mut v = vec!["cargo run".to_string()];
+        v.extend(args.into_iter().map(|a| a.into()));
+        v.into_iter()
     }
 
     #[test]
-    fn test_get_arg_params() {
-
+    fn test_get_args_params() {
+        let mock_vec = vec![ "./example/1.txt","10"];
+        let mock_data = mock_args(mock_vec);
+        let result = get_args_params(mock_data);
+        dbg!("result.unwrap()[1]111111111 : {}",result.unwrap().paths);
+        // assert_eq!(10, result.unwrap()[1]);
     }
 
     #[test]
@@ -159,7 +185,24 @@ mod tests {
         assert_eq!("md", get_file_end_name("./../../README.md"));
     }
 
-    #[test]
-    fn test_get_request_search_engineer() {
+    #[tokio::test]
+    async fn test_get_request_search_engineer() {
+        let test_html = String::from(r"
+        <html>
+            <div id='content_left'>
+                <em>test content</em>
+                no em test content
+            </div>
+        </html>
+        ");
+        let output:usize = 1;
+        let content_result = Rc::new(RefCell::new(None));
+        let result_clone = Rc::clone(&content_result);
+        async {
+            let result =  get_request_search_engineer(test_html).await;
+            *result_clone.borrow_mut() = result;
+        }.await;
+        let actual_result = content_result.borrow().unwrap();
+        assert_eq!(output, actual_result);
     }
 }
