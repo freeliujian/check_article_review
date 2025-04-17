@@ -1,3 +1,12 @@
+//! 这是文章检测重复的核心库
+//!
+//! 他提供讲文章拆分成不同的str去baidu请求
+//!
+//! ## 使用方法
+//! `cargo run -- file_path number`
+//!
+//!
+
 use std::cell::RefCell;
 use std::path;
 use std::fs::read_to_string;
@@ -14,6 +23,8 @@ pub struct ArticleArgsParams {
 }
 
 impl ArticleArgsParams {
+
+    /// 这是处理文本的函数，主要用来切割和去除空格
     pub fn handle_article(location: ArticleArgsParams) -> Vec<String> {
         if location.num > 32  {
             panic!("Invalid article number: {}", location.num);
@@ -46,6 +57,7 @@ pub struct GetRequestSearchEngineer {
 }
 
 impl GetRequestSearchEngineer {
+    /// 简单的封装了reqwest的get方法
     pub async fn get(url:String) -> Result<String, Error>  {
         let response = get(url).await?;
         response.text().await
@@ -59,7 +71,7 @@ pub enum SearchEngineer{
 }
 
 impl SearchEngineer{
-
+    /// 拼接请求url
     pub fn new(text: String) -> Self {
         let mut search_engineer:SearchEngineer =SearchEngineer::None;
         let mut add_search_end = String::new();
@@ -72,7 +84,7 @@ impl SearchEngineer{
     }
 }
 
-
+/// 获取args的函数
 pub fn get_args_params(mut arg: impl Iterator<Item = String>) ->Result<ArticleArgsParams, Error> {
     arg.next();
     let path = arg.next().unwrap();
@@ -88,7 +100,7 @@ fn get_file_end_name (file_name: &str) -> String {
     let extension = file_path.extension().and_then(|s| s.to_str());
     extension.unwrap().to_string()
 }
-
+///获取频率函数
 pub async fn get_request_search_engineer(content: String) -> Option<usize> {
     let mut filter_em_regex_pin:usize =1;
     let document = Html::parse_document(content.as_str());
@@ -110,6 +122,7 @@ pub struct LoopRequestSearchEngine {
     pub url:SearchEngineer,
 }
 impl LoopRequestSearchEngine {
+    ///轮询获取频率函数
     pub async fn loop_request_search(params: LoopRequestSearchEngine) {
         let items = Rc::new(RefCell::new(Vec::new()));
         let urls = params.content.into_iter().map({
@@ -175,8 +188,8 @@ mod tests {
         let mock_vec = vec![ "./example/1.txt","10"];
         let mock_data = mock_args(mock_vec);
         let result = get_args_params(mock_data);
-        dbg!("result.unwrap()[1]111111111 : {}",result.unwrap().paths);
-        // assert_eq!(10, result.unwrap()[1]);
+        assert_eq!("./example/1.txt", result.iter().clone().next().unwrap().paths);
+        assert_eq!("10", result.iter().clone().next().unwrap().num.to_string());
     }
 
     #[test]
